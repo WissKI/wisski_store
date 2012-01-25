@@ -1,0 +1,7 @@
+; $Id$
+name = WissKI TripleStore Backend
+description = The communication backend between the WissKI module and the ARC triple store 
+core = 6.x
+version = 1.0
+package = "WissKI"
+dependencies[] = path

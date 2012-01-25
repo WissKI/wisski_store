@@ -1,0 +1,548 @@
+<?php
+// $ID$
+
+include_once("arc/ARC2.php");
+include_once("wisski_Store.php");
+
+/**
+* Create a wisski-class object. All complex functions are stored there.
+* the .module file just handles the drupal-communication and should only
+* contains hooks and so on.
+*
+* The database the system operates on has to be adjusted here!
+*
+* @author: Mark Fichtner
+* @return: Returns a wisski-object
+*/
+function wisski_store_getObj() {
+	global $db_url;
+	global $base_url;
+	$db_conn = parse_url($db_url);
+  $storecfg = array(
+    'db_name' => urldecode(variable_get('wisski_database', substr($db_conn['path'], 1))),
+    'db_user' => urldecode($db_conn['user']),
+    'db_pwd' => urldecode($db_conn['pass']),
+    'store_name' => variable_get('wisski_table', 'wissKI'),
+  );
+
+	$wisski = new wisski_Store($storecfg, $base_url);
+	return $wisski;
+}
+
+/**
+* Construct a path-alias title for a drupal node
+*
+*
+* @author: Mark Fichtner
+* @return: Returns a string for an alias-path
+*/
+function wisski_store_makePathTitle($str) {
+	$outstr = str_replace(array(":", ".", " ", "}", "{"), "_", $str);
+	return $outstr;
+}
+
+/**
+* For a given triple array with s p o as keys add drupal nodes.
+*
+* @param $triple a triple as an array with keys s p o
+* @author: Mark Fichtner
+* @return: Returns the new node or an existing one
+*/
+function wisski_store_addNodeForTriple($triple) {
+	// We don't add a node for everything that is not rdf:type!
+	if($triple['p'] != wisski_store_getObj()->wisski_ARCAdapter_delNamespace("rdf:type"))
+		return;
+
+  // the acting user
+	global $user;
+
+	// if there already is such a node, return it. 
+	$query = db_query("SELECT * FROM {node} WHERE title='%s'", wisski_store_getObj()->wisski_ARCAdapter_addNamespace($triple['s']));
+	if ($node = db_fetch_object($query)) {
+		return $node;
+	}
+
+	// make a new node of type individual with title and empty body
+	$node = new stdClass();
+	$node->type = 'individual';
+	$node->title = wisski_store_getObj()->wisski_ARCAdapter_addNamespace($triple['s']);
+	$node->body = ''; 
+	$node->teaser = '';
+	$node->uid = $user->uid;
+ 	$node->status = 1;
+ 	$node->promote = 0;
+ 	$node->comment = 2;
+  node_save($node);
+  
+	return $node;
+}
+
+/**
+* The permissions can be built here
+* @author: Mark Fichtner
+* @return: Returns an array of permissionstrings
+*/
+function wisski_store_perm() {
+	return array('wisski administrate page');
+}
+
+/**
+* This function allows additional menus. E.g. the tabs are built like that.
+* @author: Mark Fichtner
+* @return: Returns an array of menu-items
+*/
+function wisski_store_menu() {
+
+  $items = array();
+
+  //  The settings for the wisski module in the admin page - might be useful later
+  $items['admin/settings/wisski'] = array(
+    'title' => 'WissKI module settings',
+    'description' => 'This is the control center for the scientific WissKI-module.',
+    'page callback' => 'wisski_store_admin',
+		'access arguments' => array('wisski administrate page'),
+    'type' => MENU_NORMAL_ITEM,
+   );
+
+	$items['admin/settings/wisski/ontology'] = array(
+   	'title'    => t('Ontology'),
+    'page callback' => 'drupal_get_form',
+		'page arguments' => array('wisski_store_ontology'),
+		'type'     => MENU_LOCAL_TASK,
+		'access arguments' => array('wisski administrate page'),
+  );
+
+	$items['admin/settings/wisski/graphViz'] = array(
+   	'title'    => t('GraphViz Settings'),
+    'page callback' => 'drupal_get_form',
+		'page arguments' => array('wisski_store_graphViz'),
+		'type'     => MENU_LOCAL_TASK,
+		'access arguments' => array('wisski administrate page'),
+  );
+
+
+	return $items;
+}
+
+/**
+* This function renders the menu code for the ontology menu
+* @author: Mark Fichtner
+* @return: Returns a form for the ontology menu
+*/
+function wisski_store_ontology() {
+
+	$onto = wisski_store_getObj()->wisski_Store_getOntologyURI();
+
+	$form['ontology'] = array(
+	  '#collapsed' => $onto ? TRUE : FALSE,
+	  '#type' => 'fieldset',
+	  '#collapsible' => '1',
+		'#title' => t("Ontology"),
+	);
+	
+	// ontology already existing?
+	if($onto) {
+		$str = "";
+		foreach($onto as $ontology) {
+			$str .= '<em>' . $ontology . '</em><br>';
+		}
+		$form['ontology']['current'] = array(
+			'#value' => '<strong>' . t('Currently loaded ontology:') . '</strong><br>' . $str,
+			'#suffix' => '</div>',
+			'#prefix' => '<div>',
+		);
+	} else {
+    $form['ontology']['wisski_ontology'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Location of the ontology that should be loaded'),
+      '#default_value' => variable_get('wisski_ontology', ""),
+      '#description' => t("The url of the ontology that should be used for WissKI."),
+      '#required' => TRUE,
+    );
+	
+  	$form['ontology']['wisski_store_readOntology'] = array(
+    	'#type' => 'submit',
+      '#value' => 'Read Ontology',
+      '#submit' => array('wisski_store_readOntology'),
+    );
+  }
+  
+  if($onto) {
+  	$form['data'] = array(
+	    '#collapsed' => $onto ? FALSE : TRUE,
+	    '#type' => 'fieldset',
+	    '#collapsible' => '1',
+	    '#title' => t("Data Management"),
+    );
+    
+    $curDatas = variable_get("wisski_data", array());
+    $str = "";
+    if(!empty($curDatas)) {
+      foreach($curDatas as $curData) {
+        $str .= '<em>' . $curData . '</em><br>';
+      }
+    } else {
+      $str = "<em>None</em><br>";
+    }
+    
+    $form['data']['current'] = array(
+      '#value' => '<strong>' . t('Currently loaded datafiles:') . '</strong><br>' . $str,
+      '#suffix' => '</div>',
+      '#prefix' => '<div>',
+    );
+    
+    $form['data']['wisski_data'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Load a RDF/OWL data file'),
+      '#default_value' => "", 
+      '#description' => t("The url of the file that should be loaded in WissKI."),
+    );
+    
+    $form['data']['wisski_store_readData'] = array(
+  		'#type' => 'submit',
+  		'#value' => t('Read Data'),
+  		'#submit' => array('wisski_store_readData'),
+  	);
+    
+    $curExpos = variable_get("wisski_dumps", array());
+    $newExpos = array();
+    $delbuttons = array();
+    $str = "";
+    if(!empty($curExpos)) {
+      foreach($curExpos as $curExpo) {
+        if(file_exists($curExpo['file'])) {
+
+          $delbuttons['data']['wisski_store_delData_' . basename($curExpo['file'])] = array(
+            '#type' => 'submit',
+            '#name' => basename($curExpo['file']),
+            '#value' => t('Delete Dump ') . basename($curExpo['file']),
+            '#submit' => array('wisski_store_delDump'),
+        	);
+          $newExpos[] = $curExpo; 
+          $str .= '<em><a href=' . file_create_url($curExpo['file']) . '>' . 
+            basename($curExpo['file']) . '</a> - ' . $curExpo['size'] . 
+            ' Bytes - ' . $curExpo['date'] . '</em><br>';
+        }
+      }
+    } else {
+      $str = "<em>None</em><br>";
+    }
+
+    variable_set("wisski_dumps", $newExpos);
+    
+    $form['data']['exports'] = array(
+      '#value' => '<strong>' . t('Currently available data dumps:') . '</strong><br>' . $str,
+      '#suffix' => '</div>',
+      '#prefix' => '<div>',
+    );
+
+    if(!empty($delbuttons))
+      $form['data'] = array_merge($form['data'], $delbuttons['data']);
+    
+    $form['data']['wisski_store_dumpData'] = array(
+  		'#type' => 'submit',
+  		'#value' => t('Dump Data'),
+  		'#submit' => array('wisski_store_dumpData'),
+  	);
+    
+  	$form['data']['wisski_store_makeNodes'] = array(
+  		'#type' => 'submit',
+  		'#value' => t('Manually Generate Drupal Nodes from Triplestore'),
+  		'#submit' => array('wisski_store_makeNodes'),
+  	);
+
+    $form['data']['wisski_store_delData'] = array(
+  		'#type' => 'submit',
+  		'#value' => t('Delete Data'),
+  		'#submit' => array('wisski_store_delData'),
+  	);
+  	
+    $form['data']['wisski_store_delOnto'] = array(
+  		'#type' => 'submit',
+  		'#value' => t('Delete Ontology'),
+  		'#submit' => array('wisski_store_delOnto'),
+  	);
+	
+  	$form['data']['wisski_store_clearAll'] = array(
+  		'#type' => 'submit',
+  		'#value' => t('Delete Data and Ontology'),
+  		'#submit' => array('wisski_store_clearAll'),
+  	);
+  }
+	
+	if(module_exists("wisskiReasoner")) {
+	  $form['reasoner'] = array(
+	    '#collapsed' => $onto ? FALSE : TRUE,
+	    '#type' => 'fieldset',
+	    '#collapsible' => '1',
+	    '#title' => t("Builtin Reasoning Options"),
+  	);
+  	
+		$form['reasoner']['wisskiReasoner_inverse_reasoning'] = array(
+	    '#type' => 'checkbox',
+	    '#title' => t('Activate inverse reasoning for SPARQL'),
+	    '#default_value' => variable_get('wisskiReasoner_inverse_reasoning', 0),
+		);
+	
+	
+		$form['reasoner']['wisskiReasoner_save_inverse'] = array(
+			'#type' => 'submit',
+			'#value' => t('Save Reasoning Options'),
+			'#submit' => array('wisski_store_save_inverse'),
+		);
+	}
+	
+	if($onto) {
+	
+	$form['namespaces'] = array(
+	  '#collapsed' => $onto ? FALSE : TRUE,
+	  '#type' => 'fieldset',
+	  '#collapsible' => '1',
+		'#title' => t("namespaces"),
+	);
+	
+	$form['namespaces']['table'] = array(
+		'#prefix' => '<table width="100%" cellspacing="0" cellpadding="0"><tr><th>' . t('short') . '</th><th>' . t('uri') . '</th></tr>',
+		'#suffix' => '</table>',
+	);
+	                    
+	
+	$ns = wisski_store_getObj()->wisski_ARCAdapter_getNamespaces();
+	$i = 0;
+	foreach($ns as $key => $value) {
+		$form['namespaces']['table']['row' . $i] = array(
+			'#prefix' => '<tr>',
+			'#suffix' => '</tr>',
+		);
+		$form['namespaces']['table']['row' . $i]['short' . $i] = array(
+			'#type' => 'textfield',
+			'#size' => '10',
+			'#prefix' => '<td>',
+			'#suffix' => '</td>',
+			'#default_value' => $key,
+		);
+		$form['namespaces']['table']['row' . $i]['long' . $i] = array(
+			'#type' => 'textfield',
+//			'#size' => '1',
+			'#prefix' => '<td>',
+			'#suffix' => '</td>',	      
+			'#default_value' => $value,
+		);
+		$i++;
+	}
+	
+	$form['namespaces']['wisski_store_saveNS'] = array(
+	  '#type' => 'submit',
+	  '#value' => 'Save',
+	  '#submit' => array('wisski_store_saveNS'),
+	);
+	}
+	return $form;
+}
+
+/**
+* Deletion of a dumpfile 
+* @author: Mark Fichtner
+* @return: TRUE if the dumpfile was deleted
+*/
+function wisski_store_delDump($f, $form_state) {
+  drupal_set_message("Deleting " . file_directory_path() . '/' . $form_state['clicked_button']['#name']);
+  file_delete(file_directory_path() . '/' . $form_state['clicked_button']['#name']);
+  return TRUE;
+}
+
+/**
+* This function stores a changed namespace attribute.
+* BEWARE: This does not iterate all triples and changes them! You have
+* to do this manually if you want that!
+* @author: Mark Fichtner
+*/
+function wisski_store_saveNS($f, $form_state) {
+	$base = $form_state['values'];
+	$oldNS = wisski_store_getObj()->wisski_ARCAdapter_getNamespaces();
+	$newNS = array();
+	for($i = 0; $i < count($oldNS); $i++) {
+		$newNS[$base['short' . $i]] = $base['long' . $i];
+	}
+	wisski_store_getObj()->wisski_ARCAdapter_setNamespaces($newNS);	
+}
+
+/**
+* This function handles/forwards the deletion of everything
+* @author: Mark Fichtner
+* @return: the form data generated in the object
+*/
+function wisski_store_clearAll() {
+	return wisski_store_getObj()->wisski_Store_clearAll();
+}
+
+/**
+* This function handles/forwards the generation of nodes based on 
+* the triple store
+* @author: Mark Fichtner
+* @return: the form data generated in the object
+*/
+function wisski_store_makeNodes() {
+	return wisski_store_getObj()->wisski_Store_makeNodes();
+}
+
+
+/**
+* This function handles/forwards the import of an ontology
+* @author: Mark Fichtner
+* @return: TRUE if import worked, else FALSE
+*/
+function wisski_store_readOntology($f, &$s) {
+	$ret = wisski_store_getObj()->wisski_Store_readOntology($f, $s);
+	
+	if($ret && module_exists("wisskiReasoner")) {
+		module_disable(array("wisskiReasoner"));
+		module_enable(array("wisskiReasoner"));
+	}
+	
+	return $ret;
+}
+
+/**
+* This function handles the import of data to the wisski system in OWL/RDF format
+* @author: Mark Fichtner
+* @return: TRUE if import worked, else FALSE
+*/
+function wisski_store_readData($f, &$s) {
+  $ret = wisski_store_getObj()->wisski_Store_readData($f, $s);
+  return $ret;
+}
+
+/**
+* This function handles the dumping of data to the wisski system in OWL/RDF format
+* @author: Mark Fichtner
+* @return: TRUE if dumping worked, else FALSE
+*/
+function wisski_store_dumpData($f, &$s) {
+  $ret =  wisski_store_getObj()->wisski_Store_dumpData($f, $s);
+  return ret;
+}
+
+/**
+* This function handles the deletion of data of the wisski system in OWL/RDF format
+* @author: Mark Fichtner
+* @return: TRUE if deletion worked, else FALSE
+*/
+function wisski_store_delData($f, &$s) {
+  $ret =  wisski_store_getObj()->wisski_Store_delData($f, $s);
+  return ret;
+}
+
+/**
+* This function handles the deletion of ontologies of the wisski system in OWL/RDF format
+* @author: Mark Fichtner
+* @return: TRUE if deletion worked, else FALSE
+*/
+function wisski_store_delOnto($f, &$s) {
+  $ret =  wisski_store_getObj()->wisski_Store_delOntology($f, $s);
+  return ret;
+}
+
+
+/**
+* This function generates the administrative page for the graphviz setup
+* @author: Mark Fichtner
+* @return: the form data
+*/
+function wisski_store_graphViz() {
+  $form['wisski_store_graphviz'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Location of the graphviz-executeable for graph-drawing'),
+    '#default_value' => variable_get('wisski_graphviz', "/usr/bin/dot"),
+    '#size' => 100,
+    '#maxlength' => 255,
+    '#description' => t("The absolute path to the graphviz-executeable (e.g. /bin/dot in linux or C:/programme/graphviz/dot.exe in windows)."),
+    '#required' => TRUE,
+  );
+
+  $form['wisski_store_graphviztmp'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Location of the graphviz-temporary for graph-drawing'),
+    '#default_value' => variable_get('wisski_graphviztmp', "/srv/www/htdocs/wisski/sites/all/modules/wisski/arc/tmp/"),
+    '#size' => 100,
+    '#maxlength' => 255,
+    '#description' => t("The absolute path to a temporary directory writeable for graphviz."),
+    '#required' => TRUE,
+  );
+
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Save'),
+    '#submit' => array('wisski_store_saveGraphViz')
+  );
+
+	return $form;
+}
+
+/**
+* This function handles the saving of the graphviz options
+* @author: Mark Fichtner
+*/
+function wisski_store_saveGraphViz($nix, $nox) {
+	variable_set('wisski_graphviz', $nix['#post']['wisski_store_graphviz']);
+	variable_set('wisski_graphviztmp', $nix['#post']['wisski_store_graphviztmp']);
+}
+
+
+/**
+* This function handles the saving of the inverse options
+* @author: Mark Fichtner
+*/
+function wisski_store_save_inverse($form, &$form_state) {
+  $val = $form_state['values']['wisskiReasoner_inverse_reasoning'];
+  if($val) {
+    variable_set("wisskiReasoner_inverse_reasoning", TRUE);
+  } else {
+    variable_set("wisskiReasoner_inverse_reasoning", FALSE);
+  }
+}
+                                        
+
+/**
+* The administration menu and its items
+* @author: Mark Fichtner
+* @return: Returns an array of forms that should be displayed
+*/
+function wisski_store_admin() {
+
+	$form = array();
+	$output = t("Welcome to the WissKI-Module. This configuration menu is separated in three parts:<br>");
+	$output .= t("- Authority: read and delete current global name authorities. Currently only SKOS is supported.<br>");
+	$output .= t("- Graph-Drawing: set the settings for your installation of Graph-Viz to support drawing of graphs.<br>");
+	$output .= t("- Ontology: read or delete the base ontology for your project.<br>");
+
+	return $output;
+
+}
+
+
+/** Escapes a string according to http://www.w3.org/TR/rdf-sparql-query/#rSTRING_LITERAL.
+*@author Martin Scholz
+*/
+function wisski_store_escape_sparql_literal($literal) {
+  $sic  = array("\\",   '"',   "'",   "\b",  "\f",  "\n",  "\r",  "\t");
+  $corr = array("\\\\", '\\"', "\\'", "\\b", "\\f", "\\n", "\\r", "\\t");
+  $literal = str_replace($sic, $corr, $literal);
+  return $literal;
+}
+
+
+/** Escapes the special characters for a sparql regex.
+*@author Martin Scholz
+*/
+function wisski_store_escape_sparql_regex($regex) {
+//  $chars = "\\.*+?^$()[]{}|";
+  $sic = array('\\', '.', '*', '+', '?', '^', '$', '(', ')', '[', ']', '{', '}', '|');
+  $corr = array('\\\\', '\.', '\*', '\+', '\?', '\^', '\$', '\(', '\)', '\[', '\]', '\{', '\}', '\|');
+  $regex = str_replace($sic, $corr, $regex);
+  return $regex;
+}
+
+
+
+
