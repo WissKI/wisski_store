@@ -270,7 +270,7 @@ function wisski_store_ontology() {
   	);
   }
 	
-	if(module_exists("wisskiReasoner")) {
+	if(module_exists("wisski_reasoner")) {
 	  $form['reasoner'] = array(
 	    '#collapsed' => $onto ? FALSE : TRUE,
 	    '#type' => 'fieldset',
@@ -395,9 +395,9 @@ function wisski_store_makeNodes() {
 function wisski_store_readOntology($f, &$s) {
 	$ret = wisski_store_getObj()->wisski_Store_readOntology($f, $s);
 	
-	if($ret && module_exists("wisskiReasoner")) {
-		module_disable(array("wisskiReasoner"));
-		module_enable(array("wisskiReasoner"));
+	if($ret && module_exists("wisski_reasoner")) {
+		module_disable(array("wisski_reasoner"));
+		module_enable(array("wisski_reasoner"));
 	}
 	
 	return $ret;
