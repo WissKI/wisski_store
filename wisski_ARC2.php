@@ -20,7 +20,7 @@ class wisski_ARC2 extends ARC2_Store {
   
   /* runs when a query is posted */
   function query($q, $result_format = '', $src = '', $keep_bnode_ids = 0, $log_query = 0) {
-//    $debug = TRUE;
+    //$debug = TRUE;
 
     // if parameter amount is smaller than $max, simply let arc handle it. 
     $max = 5;
@@ -30,7 +30,7 @@ class wisski_ARC2 extends ARC2_Store {
     
     // give some debug
     if($debug) {
-      print_r("Running Query: " . $q . " <br>");  
+      print_r("Running Query: " . htmlentities($q) . " <br>");  
     }
     
     // Get a SPARQL Plus Parser... perhaps you would like something else here in future
@@ -47,7 +47,7 @@ class wisski_ARC2 extends ARC2_Store {
       $r = parent::query($q, $result_format, $src, $keep_bnode_ids, $log_query);
       // any errors?
       if($err = $this->getErrors()) {
-        drupal_set_message("ARC2-ERROR: " . serialize($err) . " when performing query $q","error");
+        drupal_set_message("ARC2-ERROR: " . serialize($err) . " when performing query " . serialize($q),"error");
       } 
       return $r;
     }
@@ -150,16 +150,17 @@ class wisski_ARC2 extends ARC2_Store {
         }
 
         $querystring .= " WHERE { ";
-
-//        print_r($querystring . $querymid . $condition);
+        
+        //print_r("query: " . htmlentities($querystring . $querymid . $condition));
         // get to work!
         $outvalues = $this->construct_deps(0, $curvar, $deps, $querystring, $querymid, $outvalues, $condition);
 
-//        print_r($outvalues);
+        //print_r("outvalues");
+        //print_r($outvalues);
         
         // if we did not find anything now we can savely stop it.
         if(empty($outvalues['result']['rows'])) {
-//          print_r("Nothing found! Stop!");
+          //print_r("Nothing found! Stop!");
           break;
         }
         // next var
@@ -202,8 +203,10 @@ class wisski_ARC2 extends ARC2_Store {
         $r['result']['variables'] = array();
       }
     }
-
-//    print_r($r);
+    //print_r("all out:");
+    //print_r($alloutvalues);
+    //print_r("<br/>");
+    //print_r($r);
     return $r;
   }
   
@@ -262,10 +265,10 @@ class wisski_ARC2 extends ARC2_Store {
 //      if(!strpos($querystring, '?'))
 //        return $outvalues;
       $q = $querystring . $querymid . $condition . " }";
-//      print_r("real query: $q");
+      //print_r("real query: " . htmlentities($q));
       $out = parent::query($q);
-//      print_r("real out: ");
-//      print_r($out);
+      //print_r("real out: ");
+      //print_r($out);
       // any errors?
       if($this->getErrors()) {
         print_r("failed:");
@@ -286,7 +289,8 @@ class wisski_ARC2 extends ARC2_Store {
 
     $tmpoutvalues = $outvalues['result']['rows'];
     foreach($tmpoutvalues as $vkey => $value ) { // [0][$deps['var_on_var'][$curvar][$i]]['result']['rows'] as $vkey => $value) {
-
+      $querymid = " " . $querymid;
+      //print_r("<br/>vor der ersetzung: " . htmlentities($querymid));
       if($value[$deps['var_on_var'][$curvar][$i] . " type"] == "literal") {
         $querytmpstring = str_replace(' ?' . $deps['var_on_var'][$curvar][$i] . ' ', ' ', $querystring);
         $querytmpmid = str_replace(' ?' . $deps['var_on_var'][$curvar][$i] . ' ', ' "' . $value[$deps['var_on_var'][$curvar][$i]] . '" ', $querymid);
@@ -297,6 +301,7 @@ class wisski_ARC2 extends ARC2_Store {
         $querytmpstring = str_replace(' ?' . $deps['var_on_var'][$curvar][$i] . ' ', ' ', $querystring);
         $querytmpmid = str_replace(' ?' . $deps['var_on_var'][$curvar][$i] . ' ', ' <' . $value[$deps['var_on_var'][$curvar][$i]] . '> ', $querymid);
       }
+      //print_r("<br/>nach der ersetzung: " . htmlentities($querytmpmid));
       
       if(strpos($querytmpstring, '?') === FALSE) {
 //        print_r($querystring);
