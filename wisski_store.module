@@ -20,6 +20,7 @@ function wisski_store_getObj() {
 	$db_conn = parse_url($db_url);
   $storecfg = array(
     'db_name' => urldecode(variable_get('wisski_database', substr($db_conn['path'], 1))),
+    'db_host' => urldecode($db_conn['host']),
     'db_user' => urldecode($db_conn['user']),
     'db_pwd' => urldecode($db_conn['pass']),
     'store_name' => variable_get('wisski_table', 'wissKI'),
