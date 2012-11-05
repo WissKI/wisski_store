@@ -41,8 +41,9 @@ class wisski_ARC2 extends ARC2_Store {
     $p->parse($q, $src);
     $infos = $p->getQueryInfos();
     
+    //drupal_set_message(serialize($infos));
     // less than $max variables? Let ARC do the work!
-    if(count($infos['vars']) < $max) {
+    if(count($infos['vars']) < $max || $infos['query']['type'] != "select") {
 
       $r = parent::query($q, $result_format, $src, $keep_bnode_ids, $log_query);
       // any errors?
