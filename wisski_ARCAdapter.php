@@ -46,9 +46,13 @@ class wisski_ARCAdapter
     $this->config = $myconfig;
   
     include_once("wisski_ARC2.php");
-    $store = new wisski_ARC2($this->config);
-    if (!$store->isSetUp()) {
-      $store->setUp();
+    if(!empty($this->config['remote_update_server']) || !empty($this->config['remote_query_server']) || !empty($this->config['remote_store_endpoint']))
+      $store = new wisski_ARC2Remote($this->config);
+    else {
+      $store = new wisski_ARC2($this->config);
+      if (!$store->isSetUp()) {
+        $store->setUp();
+      }
     }
     
     return $store;

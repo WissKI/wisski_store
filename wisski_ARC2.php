@@ -4,6 +4,7 @@
  **/
 
 include_once("arc/store/ARC2_Store.php");
+include_once("arc/store/ARC2_RemoteSPARQLOneDotOneStore.php");
 
 class wisski_ARC2 extends ARC2_Store {
   
@@ -17,7 +18,7 @@ class wisski_ARC2 extends ARC2_Store {
   function __init() {/* db_con */
     parent::__init();
   }
-  
+
   /* runs when a query is posted */
   function query($q, $result_format = '', $src = '', $keep_bnode_ids = 0, $log_query = 0) {
     //$debug = TRUE;
@@ -441,4 +442,68 @@ class wisski_ARC2 extends ARC2_Store {
     return $res;
   }
                                         
+}
+
+
+class wisski_ARC2Remote extends ARC2_RemoteSPARQLOneDotOneStore {
+  protected $update = "";
+  protected $query = "";
+  protected $construct_parameters = array();
+  protected $calling_object = NULL;
+
+  function __construct($a = '', $caller = '') {
+    if(!empty($a['remote_update_server']))
+      $this->update = $a['remote_update_server'];
+    if(!empty($a['remote_query_server']))
+      $this->query = $a['remote_query_server'];
+    else
+      $this->query = $a['remote_store_endpoint'];
+
+    $this->construct_parameters = $a;
+
+    if(!$caller)
+      $caller = new stdClass();
+      
+    $this->calling_object = $caller;
+    parent::__construct($a, $caller);
+  }
+        
+  function __init() {/* db_con */
+    parent::__init();
+  }
+  
+  function runQuery($q, $qt = '', $infos = '') {
+    if(!empty($infos) && ($infos['query']['type'] == "select" || $infos['query']['type'] == "base" ||$infos['query']['type'] == "ask" || $infos['query']['type'] == "construct" || $infos['query']['type'] == "describe") || empty($this->update)) {
+      $this->a['remote_store_endpoint'] = $this->query;
+      $r = parent::runQuery($q, $qt, $infos);
+    } else {
+      $this->construct_parameters['remote_store_endpoint'] = $this->update;
+      $this->a['remote_store_endpoint'] = $this->update;      
+      $r = parent::runQuery($q, $qt, $infos);
+    }
+    return $r;
+  }  
+  
+  /* runs when a query is posted */
+  function query($q, $result_format = '', $src = '', $keep_bnode_ids = 0, $log_query = 0) {
+    // Get a SPARQL Plus Parser... perhaps you would like something else here in future
+    // esp. if this interface is abstracted, this functionality for query analyzing
+    // must be replaced.
+
+    ARC2::inc('SPARQLPlusParser');
+    $p = new ARC2_SPARQLPlusParser($this->a, $this);
+    $p->parse($q, $src);
+    $infos = $p->getQueryInfos();
+        
+    if(($infos['query']['type'] == "select" || $infos['query']['type'] == "base" ||$infos['query']['type'] == "ask" || $infos['query']['type'] == "construct" || $infos['query']['type'] == "describe") || empty($this->update)) {
+      $this->a['remote_store_endpoint'] = $this->query;
+
+      $r = parent::query($q, $result_format, $src, $keep_bnode_ids, $log_query);
+    } else {
+      $this->a['remote_store_endpoint'] = $this->update;
+      
+      $r = parent::query($q, $result_format, $src, $keep_bnode_ids, $log_query);
+    }
+    return $r;
+  }
 }

@@ -15,16 +15,24 @@ include_once("wisski_Store.php");
 * @return: Returns a wisski-object
 */
 function wisski_store_getObj() {
-	global $db_url;
-	global $base_url;
-	$db_conn = parse_url($db_url);
-  $storecfg = array(
-    'db_name' => urldecode(variable_get('wisski_database', substr($db_conn['path'], 1))),
-    'db_host' => urldecode($db_conn['host']),
-    'db_user' => urldecode($db_conn['user']),
-    'db_pwd' => urldecode($db_conn['pass']),
-    'store_name' => variable_get('wisski_table', 'wissKI'),
-  );
+  global $db_url;
+  global $base_url;
+
+  if(variable_get('wisski_local_store', 1)) {
+    $db_conn = parse_url($db_url);
+    $storecfg = array(
+      'db_name' => urldecode(variable_get('wisski_database', substr($db_conn['path'], 1))),
+      'db_host' => urldecode($db_conn['host']),
+      'db_user' => urldecode($db_conn['user']),
+      'db_pwd' => urldecode($db_conn['pass']),
+      'store_name' => variable_get('wisski_table', 'wissKI'),
+    );
+  } else {
+    $storecfg = array(
+      'remote_query_server' => variable_get('wisski_remote_select', ""), //"http://wisski.gnm.de:8080/openrdf-workbench/repositories/native/query",
+      'remote_update_server' => variable_get('wisski_remote_update', ""), //"http://wisski.gnm.de:8080/openrdf-workbench/repositories/native/update",
+    );
+  }
 
 	$wisski = new wisski_Store($storecfg, $base_url);
 	return $wisski;
@@ -101,29 +109,101 @@ function wisski_store_menu() {
     'title' => 'WissKI module settings',
     'description' => 'This is the control center for the scientific WissKI-module.',
     'page callback' => 'wisski_store_admin',
-		'access arguments' => array('wisski administrate page'),
+    'access arguments' => array('wisski administrate page'),
     'type' => MENU_NORMAL_ITEM,
    );
 
-	$items['admin/settings/wisski/ontology'] = array(
-   	'title'    => t('Ontology'),
-    'page callback' => 'drupal_get_form',
-		'page arguments' => array('wisski_store_ontology'),
-		'type'     => MENU_LOCAL_TASK,
-		'access arguments' => array('wisski administrate page'),
+   $items['admin/settings/wisski/ontology'] = array(
+     'title'    => t('Ontology'),
+     'page callback' => 'drupal_get_form',
+     'page arguments' => array('wisski_store_ontology'),
+     'type'     => MENU_LOCAL_TASK,
+     'access arguments' => array('wisski administrate page'),
   );
 
-	$items['admin/settings/wisski/graphViz'] = array(
-   	'title'    => t('GraphViz Settings'),
+  $items['admin/settings/wisski/graphViz'] = array(
+    'title'    => t('GraphViz Settings'),
     'page callback' => 'drupal_get_form',
-		'page arguments' => array('wisski_store_graphViz'),
-		'type'     => MENU_LOCAL_TASK,
-		'access arguments' => array('wisski administrate page'),
+    'page arguments' => array('wisski_store_graphViz'),
+    'type'     => MENU_LOCAL_TASK,
+    'access arguments' => array('wisski administrate page'),
   );
-
-
-	return $items;
+  
+  $items['admin/settings/wisski/storeSettings'] = array(
+    'title'    => t('Store Settings'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('wisski_store_settings'),
+    'type'     => MENU_LOCAL_TASK,
+    'access arguments' => array('wisski administrate page'),
+  );
+  
+  return $items;
 }
+
+/**
+* This function renders the menu code for the store settings menu
+* @author: Mark Fichtner
+* @return: Returns a form for the store settings menu
+*/
+function wisski_store_settings() {
+  
+    $form['local']['wisski_expl'] = array(
+      '#type' => 'item',
+      '#value' => t('Here you can adjust the settings for the backend store of your WissKI system. <br>Default setting is a local ARC2 triple store, which is recommended for most typical users. <br>If you want to use a remote SPARQL 1.1 triple store based on e.g. Sesame you can also uncheck the box below and fill the fields for the remote store.'),
+    );
+    
+    $form['local']['wisski_local_store'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Use local ARC2 store'),
+      '#default_value' => variable_get('wisski_local_store', 1),
+    );
+    
+    $form['remote'] = array(
+      '#collapsed' => variable_get('wisski_local_store', 1) ? TRUE : FALSE,
+      '#type' => 'fieldset',
+      '#collapsible' => '1',
+      '#title' => t("Remote Store"),
+    );
+	
+    $form['remote']['remote_select'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Location of the remote select endpoint'),
+      '#default_value' => variable_get('wisski_remote_select', ""),
+      '#description' => t("The url of the remote endpoint which is used for select statements."),
+
+    );
+    
+    $form['remote']['remote_update'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Location of the remote update endpoint'),
+      '#default_value' => variable_get('wisski_remote_update', ""),
+      '#description' => t("The url of the remote endpoint which is used for update statements."),
+
+    );
+	
+    $form['wisski_store_remote'] = array(
+      '#type' => 'submit',
+      '#value' => 'Save',
+      '#submit' => array('wisski_store_remote'),
+    );
+    return $form;
+}
+
+function wisski_store_remote($f, $form_state) {
+  $base = $form_state['values'];
+  
+  variable_set('wisski_local_store', $base['wisski_local_store']);
+  
+  if($base['wisski_local_store']) {
+    variable_set('wisski_remote_select', "");
+    variable_set('wisski_remote_update', "");
+  } else {
+    variable_set('wisski_remote_select', $base['remote_select']);
+    variable_set('wisski_remote_update', $base['remote_update']);
+  }
+  
+}
+
 
 /**
 * This function renders the menu code for the ontology menu
