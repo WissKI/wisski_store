@@ -314,7 +314,8 @@ print_r("query system time: $ts mysecs ");
       return;
 
     $q = "";
-    if($outRow['z type'] == "uri") 
+
+    if($rowOut['z type'] == "uri") 
       $q1 = $q . 'DELETE { <' . $subj . '> <'. $pred .'> <' . $rowOut['z'] .'> }';
     else
       $q1 = $q . 'DELETE { <' . $subj . '> <'. $pred .'> "' . $rowOut['z'] .'" }';

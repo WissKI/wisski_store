@@ -69,15 +69,16 @@ class wisski_ARC2 extends ARC2_Store {
 
     foreach($infos['vars'] as $var) {
       foreach($triples as $m_key => $triple) {
-        if(preg_match("/^\s*\?" . $var . "\s|\s\?" . $var . "\s|\s\?" . $var . '$/', $triple)) {
+        if(preg_match("/FILTER.*?\?" . $var ."/", $triple)) {
+          $deps['filter'][$var][] = $triple;
+        } else if(preg_match("/^\s*\?" . $var . "\s|\s\?" . $var . "\s|\s\?" . $var . '$/', $triple)) {
           $deps['triples'][$triple][] = $var;
           $deps['vars'][$var][] = $triple;
         }
-        if(preg_match("/FILTER.*?\?" . $var ."/", $triple)) {
-          $deps['filter'][$var][] = $triple;
-        }
       } 
     }
+    
+    //print_r("deps are: " . serialize($deps));
     
     // $outvalues will contain the value later, initialize it properly.
     $outvalues = array();
@@ -91,7 +92,7 @@ class wisski_ARC2 extends ARC2_Store {
     $allvars = $this->sort_vars($vars, $deps);
 
     $alloutvalues = array();
-
+    //print_r("doing query " . htmlentities($q));
     // if there are disjoint trees which have to be handled seperately, there
     // are more than one entry in $allvars
     foreach($allvars as $varkey => $vars) {
@@ -152,8 +153,8 @@ class wisski_ARC2 extends ARC2_Store {
         }
 
         $querystring .= " WHERE { ";
-        
-        //print_r("query: " . htmlentities($querystring . $querymid . $condition));
+            
+        //print_r("query: " . htmlentities($querystring . $querymid . $condition). "\n");
         // get to work!
         $outvalues = $this->construct_deps(0, $curvar, $deps, $querystring, $querymid, $outvalues, $condition);
 
@@ -162,7 +163,7 @@ class wisski_ARC2 extends ARC2_Store {
         
         // if we did not find anything now we can savely stop it.
         if(empty($outvalues['result']['rows'])) {
-          //print_r("Nothing found! Stop!");
+//          print_r("Nothing found! Stop! With var $curvar");
           break;
         }
         // next var
@@ -266,8 +267,10 @@ class wisski_ARC2 extends ARC2_Store {
     if($i >= count($deps['var_on_var'][$curvar])) {
 //      if(!strpos($querystring, '?'))
 //        return $outvalues;
+//      print_r("querystring: " . htmlentities($querystring));
       $q = $querystring . $querymid . $condition . " }";
-      //print_r("real query: " . htmlentities($q));
+//      print_r("real query: " . htmlentities($q));
+//      print_r("condition: " . htmlentities($condition));
       $out = parent::query($q);
       //print_r("real out: ");
       //print_r($out);
@@ -292,18 +295,25 @@ class wisski_ARC2 extends ARC2_Store {
     $tmpoutvalues = $outvalues['result']['rows'];
     foreach($tmpoutvalues as $vkey => $value ) { // [0][$deps['var_on_var'][$curvar][$i]]['result']['rows'] as $vkey => $value) {
       $querymid = " " . $querymid;
+      
       //print_r("<br/>vor der ersetzung: " . htmlentities($querymid));
       if($value[$deps['var_on_var'][$curvar][$i] . " type"] == "literal") {
         $querytmpstring = str_replace(' ?' . $deps['var_on_var'][$curvar][$i] . ' ', ' ', $querystring);
         $querytmpmid = str_replace(' ?' . $deps['var_on_var'][$curvar][$i] . ' ', ' "' . $value[$deps['var_on_var'][$curvar][$i]] . '" ', $querymid);
+        $condition = str_replace("FILTER ( ?" . $deps['var_on_var'][$curvar][$i] . ' = "' . $value[$deps['var_on_var'][$curvar][$i]] . '"  ) .' , "", $condition);
       } else if ($value[$deps['var_on_var'][$curvar][$i] . " type"] == "bnode") {
         $querytmpstring = str_replace(' ?' . $deps['var_on_var'][$curvar][$i] . ' ', ' ', $querystring);
         $querytmpmid = str_replace(' ?' . $deps['var_on_var'][$curvar][$i] . ' ', ' <' . $value[$deps['var_on_var'][$curvar][$i]] . '> ', $querymid);
+        $condition = str_replace("FILTER ( ?" . $deps['var_on_var'][$curvar][$i] . " = <" . $value[$deps['var_on_var'][$curvar][$i]] . ">  ) ." , "", $condition);
       } else {
         $querytmpstring = str_replace(' ?' . $deps['var_on_var'][$curvar][$i] . ' ', ' ', $querystring);
         $querytmpmid = str_replace(' ?' . $deps['var_on_var'][$curvar][$i] . ' ', ' <' . $value[$deps['var_on_var'][$curvar][$i]] . '> ', $querymid);
+//        print_r("I am looking to replace: " . htmlentities("FILTER ( ?" . $deps['var_on_var'][$curvar][$i] ." = <" . $value[$deps['var_on_var'][$curvar][$i]] . "> ) ."));
+//        $condition = str_replace("FILTER ( ?" . $deps['var_on_var'][$curvar][$i] ." = <" . $value[$deps['var_on_var'][$curvar][$i]] . "> ) .", "", $condition);
+        $condition = str_replace("FILTER ( ?" . $deps['var_on_var'][$curvar][$i] . " = <" . $value[$deps['var_on_var'][$curvar][$i]] . ">  ) ." , "", $condition);
+//        print_r("I did replace: " . htmlentities($condition));
       }
-      //print_r("<br/>nach der ersetzung: " . htmlentities($querytmpmid));
+//      print_r("<br/>nach der ersetzung: " . htmlentities($querytmpmid));
       
       if(strpos($querytmpstring, '?') === FALSE) {
 //        print_r($querystring);
