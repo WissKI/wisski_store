@@ -42,7 +42,7 @@ class wisski_ARC2 extends ARC2_Store {
     $p->parse($q, $src);
     $infos = $p->getQueryInfos();
     
-    //drupal_set_message(serialize($infos));
+    //drupal_set_message(htmlentities($q));
     // less than $max variables? Let ARC do the work!
     if(count($infos['vars']) < $max || $infos['query']['type'] != "select") {
 
@@ -55,6 +55,7 @@ class wisski_ARC2 extends ARC2_Store {
     }
 
     //drupal_set_message("I do it!");
+//    drupal_set_message("query is: " . htmlentities($q));
     // If we come here the query is too large for ARC
     //print_r("Query too large!");    
     // extract the triples from the SPARQL-String
@@ -78,12 +79,12 @@ class wisski_ARC2 extends ARC2_Store {
       } 
     }
     
-    //print_r("deps are: " . serialize($deps));
+    //drupal_set_message("deps are: " . htmlentities(serialize($deps)));
     
     // $outvalues will contain the value later, initialize it properly.
     $outvalues = array();
     $outvalues['result']['rows'] = array();
-    $i = 0;
+//    $i = 0;
 
     // all vars which are queried
     $vars = $infos['vars'];
@@ -91,11 +92,15 @@ class wisski_ARC2 extends ARC2_Store {
     // resort them for performance -> filters first!
     $allvars = $this->sort_vars($vars, $deps);
 
+    //drupal_set_message("all vars: " . serialize($allvars));
+
     $alloutvalues = array();
     //print_r("doing query " . htmlentities($q));
     // if there are disjoint trees which have to be handled seperately, there
     // are more than one entry in $allvars
     foreach($allvars as $varkey => $vars) {
+      
+      $i = 0;
       
       // record the time
       $timestart = microtime(TRUE);
@@ -134,7 +139,8 @@ class wisski_ARC2 extends ARC2_Store {
                     
                     // if we emptied the triples of another var we should take
                     // and use the constraints of that var
-                    if(empty($deps['vars'][$depvar]) && !empty($deps['filter'][$depvar])) {
+                    //if(empty($deps['vars'][$depvar]) && !empty($deps['filter'][$depvar])) {
+                    if(!empty($deps['filter'][$depvar])) {
                       foreach($deps['filter'][$depvar] as $filter) {
                         $condition .= $filter . " . ";
                       }
@@ -154,7 +160,7 @@ class wisski_ARC2 extends ARC2_Store {
 
         $querystring .= " WHERE { ";
             
-        //print_r("query: " . htmlentities($querystring . $querymid . $condition). "\n");
+        //drupal_set_message("query: " . htmlentities($querystring . $querymid . $condition). "\n");
         // get to work!
         $outvalues = $this->construct_deps(0, $curvar, $deps, $querystring, $querymid, $outvalues, $condition);
 
@@ -206,6 +212,7 @@ class wisski_ARC2 extends ARC2_Store {
         $r['result']['variables'] = array();
       }
     }
+    //drupal_set_message("I return: " . serialize($r));
     //print_r("all out:");
     //print_r($alloutvalues);
     //print_r("<br/>");
@@ -267,9 +274,9 @@ class wisski_ARC2 extends ARC2_Store {
     if($i >= count($deps['var_on_var'][$curvar])) {
 //      if(!strpos($querystring, '?'))
 //        return $outvalues;
-//      print_r("querystring: " . htmlentities($querystring));
+//      drupal_set_message("querystring: " . htmlentities($querystring));
       $q = $querystring . $querymid . $condition . " }";
-//      print_r("real query: " . htmlentities($q));
+      //drupal_set_message("real query: " . htmlentities($q));
 //      print_r("condition: " . htmlentities($condition));
       $out = parent::query($q);
       //print_r("real out: ");
