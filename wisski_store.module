@@ -605,9 +605,9 @@ function wisski_store_admin() {
 /** Escapes a string according to http://www.w3.org/TR/rdf-sparql-query/#rSTRING_LITERAL.
 *@author Martin Scholz
 */
-function wisski_store_escape_sparql_literal($literal) {
+function wisski_store_escape_sparql_literal($literal, $escape_backslash = TRUE) {
   $sic  = array("\\",   '"',   "'",   "\b",  "\f",  "\n",  "\r",  "\t");
-  $corr = array("\\\\", '\\"', "\\'", "\\b", "\\f", "\\n", "\\r", "\\t");
+  $corr = array($escape_backslash ? "\\\\" : "\\", '\\"', "\\'", "\\b", "\\f", "\\n", "\\r", "\\t");
   $literal = str_replace($sic, $corr, $literal);
   return $literal;
 }
@@ -625,5 +625,19 @@ function wisski_store_escape_sparql_regex($regex) {
 }
 
 
+function wisski_store_get_nid_for_instance($inst, $create_if_not_exists = FALSE) {
 
+  if ($create_if_not_exists) {
+    return wisski_store_addNodeForTriple(array('s' => $inst, 'p' => 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type'))->nid;
+  } else {
+    
+  	$query = db_query("SELECT nid FROM {node} WHERE `title`='%s'", wisski_store_getObj()->wisski_ARCAdapter_addNamespace($inst));
+	  if ($node = db_fetch_object($query)) {
+		  return $node->nid;
+	  }
+    return NULL;
+
+  }
+
+}
 
