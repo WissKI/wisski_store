@@ -54,8 +54,6 @@ class wisski_ARC2 extends ARC2_Store {
       return $r;
     }
 
-    //drupal_set_message("I do it!");
-//    drupal_set_message("query is: " . htmlentities($q));
     // If we come here the query is too large for ARC
     //print_r("Query too large!");    
     // extract the triples from the SPARQL-String
@@ -276,7 +274,6 @@ class wisski_ARC2 extends ARC2_Store {
 //        return $outvalues;
 //      drupal_set_message("querystring: " . htmlentities($querystring));
       $q = $querystring . $querymid . $condition . " }";
-      //drupal_set_message("real query: " . htmlentities($q));
 //      print_r("condition: " . htmlentities($condition));
       $out = parent::query($q);
       //print_r("real out: ");
@@ -323,7 +320,12 @@ class wisski_ARC2 extends ARC2_Store {
 //      print_r("<br/>nach der ersetzung: " . htmlentities($querytmpmid));
       
       if(strpos($querytmpstring, '?') === FALSE) {
-//        print_r($querystring);
+        $q = "ASK { " . $querytmpmid . " } " . $condition;
+        $out = parent::query($q);
+        if(!$out['result'])
+          unset($outvalues['result']['rows'][$vkey]);
+  
+//          drupal_set_message(serialize($out));
         continue;
       }
         

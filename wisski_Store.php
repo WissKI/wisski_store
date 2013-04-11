@@ -34,7 +34,7 @@ class wisski_Store extends wisski_ARCAdapter {
 
 		// delete the namespaces
 		variable_set("wisski_namespaces", array());
-		$sql = 'SELECT `nid` FROM {node} WHERE `type` = "class" OR `type` = "property" OR `type` = "individual"';
+		$sql = "SELECT nid FROM {node} WHERE type = 'class' OR type = 'property' OR type = 'individual'";
 		$result = db_query($sql);
 
 		// delete all nodes
@@ -129,7 +129,7 @@ class wisski_Store extends wisski_ARCAdapter {
 			$store->query($query);
 		}
 		
-		$sql = 'SELECT `nid` FROM {node} WHERE `type` = "class" OR `type` = "property" ';
+		$sql = "SELECT nid FROM {node} WHERE type = 'class' OR type = 'property'";
 		$result = db_query($sql);
 		while ($row = db_fetch_object($result)) {
 			node_delete($row->nid);
@@ -156,7 +156,7 @@ class wisski_Store extends wisski_ARCAdapter {
 		$store = $this->wisski_ARCAdapter_getStore();
 		$store->query($query, "rows");
 		
-		$sql = 'SELECT `nid` FROM {node} WHERE `type` = "individual" ';
+		$sql = "SELECT nid FROM {node} WHERE type = 'individual'";
 		$result = db_query($sql);
 		while ($row = db_fetch_object($result)) {
 			node_delete($row->nid);
