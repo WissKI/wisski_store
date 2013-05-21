@@ -34,14 +34,53 @@ class wisski_ARC2 extends ARC2_Store {
       print_r("Running Query: " . htmlentities($q) . " <br>");  
     }
     
+    
+    
     // Get a SPARQL Plus Parser... perhaps you would like something else here in future
     // esp. if this interface is abstracted, this functionality for query analyzing
     // must be replaced.
     ARC2::inc('SPARQLPlusParser');
     $p = new ARC2_SPARQLPlusParser($this->a, $this);
+        
     $p->parse($q, $src);
     $infos = $p->getQueryInfos();
-    
+
+    // look for filters which directly replace variables
+    if(preg_match_all('/FILTER.*?\(.*?(\?.*?)=.*?\<(.*?)\>.*?\)(.*?\.|)/', $q, $matches)) {
+      
+      // what variables are in the filters?
+      foreach($matches[1] as $key => $match) {
+      
+        // trim them and get the replacement for them
+        $var = trim($match);
+        $replacement = "<" . trim($matches[2][$key]) . ">";
+
+        // if the variable is queried we don't want to replace it because if we
+        // replace all variables the query would need rewriting from select to
+        // ask.
+        $continue = FALSE;
+        $res_vars = $infos['query']['result_vars'];
+
+        foreach($res_vars as $res_var) {
+          
+          if($res_var['var'] == substr($var, 1)) {
+            $continue = TRUE;
+            break;
+          }
+          
+        }
+        
+        // if the variable is in the resulting variables, do nothing
+        if($continue)
+          continue;
+        
+        // else first replace the filter
+        $q = preg_replace('/FILTER.*?\(.*?(\?.*?)=.*?\<(.*?)\>.*?\)(.*?\.|)/', "", $q);
+        // and then the variable for the uri
+        $q = str_replace($var, $replacement, $q); 
+      }
+    }
+
     //drupal_set_message(htmlentities($q));
     // less than $max variables? Let ARC do the work!
     if(count($infos['vars']) < $max || $infos['query']['type'] != "select") {
@@ -51,6 +90,7 @@ class wisski_ARC2 extends ARC2_Store {
       if($err = $this->getErrors()) {
         drupal_set_message("ARC2-ERROR: " . check_plain($err) . " when performing query " . check_plain($q),"error");
       } 
+
       return $r;
     }
 
@@ -215,6 +255,7 @@ class wisski_ARC2 extends ARC2_Store {
     //print_r($alloutvalues);
     //print_r("<br/>");
     //print_r($r);
+
     return $r;
   }
   
