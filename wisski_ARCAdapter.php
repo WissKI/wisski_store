@@ -702,7 +702,10 @@ print_r("query system time: $ts mysecs ");
     }
     
     foreach($properties as $property) {
-      $domainConcepts = $this->wisski_ARCAdapter_getDomainConcepts($property);
+      if(module_exists('wisski_reasoner')) {
+        $domainConcepts = wisski_reasoner_getDomainConcepts($this->wisski_ARCAdapter_delNamespace($property));
+      } else     
+        $domainConcepts = $this->wisski_ARCAdapter_getDomainConcepts($property);
       $allConcepts = array();
       foreach($domainConcepts as $domainConcept) {
         $allConcepts = array_merge($allConcepts, $this->wisski_ARCAdapter_getSubClasses($domainConcept));
