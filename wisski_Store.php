@@ -121,19 +121,17 @@ class wisski_Store extends wisski_ARCAdapter {
 	*/
 	public function wisski_Store_delOntology($form, &$form_state) {
 	 	$uris = $this->wisski_Store_getOntologyURI();
-	 	drupal_set_message(serialize($uris));
 	 	
-	 	return;
-
 	 	foreach($uris as $uri) {
 			$query = "DELETE FROM <$uri> { ?s ?p ?o } WHERE { ?s ?p ?o . }";
 		
 			$store = $this->wisski_ARCAdapter_getStore();
 			$store->query($query);
 		}
-		
+				
 		$sql = "SELECT nid FROM {node} WHERE type = 'class' OR type = 'property'";
 		$result = db_query($sql);
+		
 		while ($row = db_fetch_object($result)) {
 			node_delete($row->nid);
 		}
