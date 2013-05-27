@@ -41,6 +41,7 @@ class wisski_Store extends wisski_ARCAdapter {
 		while ($row = db_fetch_object($result)) {
 			node_delete($row->nid);
 		}
+		variable_set("wisski_data",array());
 	}
 
  /**
