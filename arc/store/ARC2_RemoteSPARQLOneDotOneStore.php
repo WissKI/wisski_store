@@ -148,7 +148,7 @@ class ARC2_RemoteSPARQLOneDotOneStore extends ARC2_Class {
     //$mthd = 'GET';
     
     $q = $this->transformSPARQLToOneDotOne($q, $infos);
-    
+
     /* reader */
     ARC2::inc('Reader');
     $reader = new ARC2_Reader($this->a, $this);
@@ -156,7 +156,7 @@ class ARC2_RemoteSPARQLOneDotOneStore extends ARC2_Class {
     if ($mthd == 'GET') {
       $url = $ep;
       $url .= strpos($ep, '?') ? '&' : '?';
-      $url .= 'query=' . urlencode($q);
+      $url .= 'query=' . urlencode(utf8_decode($q));
       $url .= '&limit=0';
       if ($k = $this->v('store_read_key', '', $this->a)) $url .= '&key=' . urlencode($k);
     }
@@ -169,13 +169,12 @@ class ARC2_RemoteSPARQLOneDotOneStore extends ARC2_Class {
       $suffix = ($k = $this->v('store_write_key', '', $this->a)) ? '&key=' . rawurlencode($k) : '';
       $suffix .= '&limit=0';
       if(in_array($qt, array('load', 'insert', 'delete', 'drop', 'clear')))
-//        $reader->setMessageBody('update=' . rawurlencode($q) . $suffix);
-        $reader->setMessageBody('action=exec&update=' .  rawurlencode(utf8_encode($q)) . $suffix);
+        $reader->setMessageBody('action=exec&update=' .  rawurlencode($q) . $suffix);
       else
-        $reader->setMessageBody('action=exec&query=' . rawurlencode(utf8_encode($q)) . $suffix);
-//        $reader->setMessageBody('query=' . rawurlencode($q) . $suffix);
+        $reader->setMessageBody('action=exec&query=' . rawurlencode($q) . $suffix);
     }
     $to = $this->v('remote_store_timeout', 0, $this->a);
+
     $reader->activate($url, '', 0, $to);
 
     $format = $reader->getFormat();
