@@ -83,7 +83,7 @@ class wisski_ARC2 extends ARC2_Store {
 
     //drupal_set_message(htmlentities($q));
     // less than $max variables? Let ARC do the work!
-    if(count($infos['vars']) < $max || $infos['query']['type'] != "select") {
+    if(count($infos['vars']) < $max || $infos['query']['type'] != "select" || (count($infos['query']['result_vars']) == 1 && $infos['query']['result_vars'][0]['aggregate'] == "count" )) {
 
       $r = parent::query($q, $result_format, $src, $keep_bnode_ids, $log_query);
       // any errors?
