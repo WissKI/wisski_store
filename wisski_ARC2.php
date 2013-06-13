@@ -88,7 +88,8 @@ class wisski_ARC2 extends ARC2_Store {
       $r = parent::query($q, $result_format, $src, $keep_bnode_ids, $log_query);
       // any errors?
       if($err = $this->getErrors()) {
-        drupal_set_message("ARC2-ERROR: " . check_plain(serialize($err)) . " when performing query " . check_plain($q),"error");
+        foreach($err as $error) 
+          drupal_set_message("ARC2-ERROR: " . check_plain($error) . " when performing query " . check_plain($q),"error");
       } 
 
       return $r;
