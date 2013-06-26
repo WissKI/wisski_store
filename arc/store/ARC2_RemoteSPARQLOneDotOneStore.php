@@ -136,7 +136,6 @@ class ARC2_RemoteSPARQLOneDotOneStore extends ARC2_Class {
     /* prefixes */
     $q = $this->completeQuery($q);
 
-
     /* custom handling */
     $mthd = 'run' . $this->camelCase($qt) . 'Query';
     
@@ -144,7 +143,7 @@ class ARC2_RemoteSPARQLOneDotOneStore extends ARC2_Class {
       return $this->$mthd($q, $infos);
     }
     /* http verb */
-    $mthd = in_array($qt, array('load', 'insert', 'delete', 'drop', 'clear')) ? 'POST' : 'GET';
+    $mthd = in_array(strtolower($qt), array('load', 'insert', 'delete', 'drop', 'clear')) ? 'POST' : 'GET';
     //$mthd = 'GET';
     
     $q = $this->transformSPARQLToOneDotOne($q, $infos);
@@ -153,28 +152,32 @@ class ARC2_RemoteSPARQLOneDotOneStore extends ARC2_Class {
     ARC2::inc('Reader');
     $reader = new ARC2_Reader($this->a, $this);
     $reader->setAcceptHeader('Accept: application/sparql-results+xml; q=0.9, application/rdf+xml; q=0.9, */*; q=0.1');
+
     if ($mthd == 'GET') {
       $url = $ep;
       $url .= strpos($ep, '?') ? '&' : '?';
-      $url .= 'query=' . urlencode(utf8_decode($q));
+      $url .= 'query=' . rawurlencode(utf8_encode($q));
       $url .= '&limit=0';
+      $url .= '&infer=false';
       if ($k = $this->v('store_read_key', '', $this->a)) $url .= '&key=' . urlencode($k);
     }
+
     if ($mthd != 'GET' || strlen($url) > 255) {
       $mthd = 'POST';
       $url = $ep;
       $reader->setHTTPMethod($mthd);
-      //$reader->setCustomHeaders("Content-Type: application/x-www-form-urlencoded");
       $reader->setCustomHeaders("Content-Type: application/x-www-form-urlencoded; charset=utf-8");
       $suffix = ($k = $this->v('store_write_key', '', $this->a)) ? '&key=' . rawurlencode($k) : '';
       $suffix .= '&limit=0';
-      if(in_array($qt, array('load', 'insert', 'delete', 'drop', 'clear')))
-        $reader->setMessageBody('action=exec&update=' .  rawurlencode($q) . $suffix);
+      $suffix .= '&infer=false';
+      $suffix .= '&queryLn=sparql';
+      if(in_array(strtolower($qt), array('load', 'insert', 'delete', 'drop', 'clear')))
+        $reader->setMessageBody('action=exec&update=' .  rawurlencode(utf8_encode($q)) . $suffix);
       else
-        $reader->setMessageBody('action=exec&query=' . rawurlencode($q) . $suffix);
+        $reader->setMessageBody('action=exec&query=' . rawurlencode(utf8_encode($q)) . $suffix);
     }
     $to = $this->v('remote_store_timeout', 0, $this->a);
-
+    
     $reader->activate($url, '', 0, $to);
 
     $format = $reader->getFormat();
@@ -228,6 +231,7 @@ class ARC2_RemoteSPARQLOneDotOneStore extends ARC2_Class {
       $r = $parser->getSimpleIndex(0);
     }
     unset($parser);
+
     return $r;
   }
   
