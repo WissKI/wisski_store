@@ -179,7 +179,7 @@ class wisski_Store extends wisski_ARCAdapter {
 	
 		global $base_url;
 		$query = "SELECT * WHERE { GRAPH <$base_url> { ?s ?p ?o . } }";
-	
+		//$query = "SELECT * WHERE { GRAPH ?g { ?s ?p ?o . } }";
 		$store = $this->wisski_ARCAdapter_getStore();
 		$rows = $store->query($query, 'rows');
 	
