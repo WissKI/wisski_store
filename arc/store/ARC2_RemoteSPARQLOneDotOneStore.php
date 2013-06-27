@@ -112,17 +112,14 @@ class ARC2_RemoteSPARQLOneDotOneStore extends ARC2_Class {
       else
         $q = str_replace("INTO", "DATA { GRAPH", $q) . "}";
     } else if($infos['query']['type'] == "delete") {
-      if(strpos($q, "FROM") !== FALSE)
+      if(strpos($q, "FROM") !== FALSE && strpos($q, "WHERE") === FALSE)
         $q = str_replace("FROM", "{ GRAPH", $q) . "}";
-      else {
+      else if(strpos($q, "FROM") !== FALSE && strpos($q, "WHERE") !== FALSE) {
+        $q = preg_replace("/FROM \<(.*?)\> \{.*?\} WHERE/i", "WHERE { GRAPH <$1>", $q) . "}";
+      } else
         if(strpos($q, "WHERE") === FALSE)
-//          $q = str_replace("DELETE ", "DELETE ", $q);
-//        else
           $q = str_replace("DELETE ", "DELETE DATA ", $q);
-      }
     }
-
-//    $q = preg_replace("/LIMIT \d+/", "", $q); 
         
     return $q;
   
