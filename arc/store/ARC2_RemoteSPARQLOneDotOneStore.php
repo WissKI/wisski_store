@@ -47,8 +47,9 @@ class ARC2_RemoteSPARQLOneDotOneStore extends ARC2_Class {
   }
   
   function insert($doc, $g, $keep_bnode_ids = 0) {
-
-    return $this->query('INSERT INTO <' . $g . '> { ' . $this->toNTriples($doc, '', 1) . ' }');
+    $fh = fopen('/tmp/test.txt', 'a+');
+    fwrite($fh, serialize($this->toNTriples($doc, '', 1)));
+    return $this->query('INSERT INTO <' . $g . '> { ' . utf8_encode($this->toNTriples($doc, '', 1)) . ' }');
   }
   
   function delete($doc, $g) {
@@ -56,7 +57,7 @@ class ARC2_RemoteSPARQLOneDotOneStore extends ARC2_Class {
       return $this->query('DELETE FROM <' . $g . '>');
     }
     else {
-      return $this->query('DELETE FROM <' . $g . '> { ' . $this->toNTriples($doc, '', 1) . ' }');
+      return $this->query('DELETE FROM <' . $g . '> { ' . utf8_encode($this->toNTriples($doc, '', 1)) . ' }');
     }
   }
   
@@ -153,7 +154,9 @@ class ARC2_RemoteSPARQLOneDotOneStore extends ARC2_Class {
     if ($mthd == 'GET') {
       $url = $ep;
       $url .= strpos($ep, '?') ? '&' : '?';
-      $url .= 'query=' . rawurlencode(utf8_encode($q));
+      // do not utf8-encode, data should already be encoded!
+      //$url .= 'query=' . rawurlencode(utf8_encode($q));
+      $url .= 'query=' . rawurlencode($q);
       $url .= '&limit=0';
       $url .= '&infer=false';
       if ($k = $this->v('store_read_key', '', $this->a)) $url .= '&key=' . urlencode($k);
@@ -169,9 +172,11 @@ class ARC2_RemoteSPARQLOneDotOneStore extends ARC2_Class {
       $suffix .= '&infer=false';
       $suffix .= '&queryLn=sparql';
       if(in_array(strtolower($qt), array('load', 'insert', 'delete', 'drop', 'clear')))
-        $reader->setMessageBody('action=exec&update=' .  rawurlencode(utf8_encode($q)) . $suffix);
+        $reader->setMessageBody('action=exec&update=' .  rawurlencode($q) . $suffix);
+        //$reader->setMessageBody('action=exec&update=' .  rawurlencode(utf8_encode($q)) . $suffix);
       else
-        $reader->setMessageBody('action=exec&query=' . rawurlencode(utf8_encode($q)) . $suffix);
+        $reader->setMessageBody('action=exec&query=' . rawurlencode($q) . $suffix);
+        //$reader->setMessageBody('action=exec&query=' . rawurlencode(utf8_encode($q)) . $suffix);
     }
     $to = $this->v('remote_store_timeout', 0, $this->a);
     
