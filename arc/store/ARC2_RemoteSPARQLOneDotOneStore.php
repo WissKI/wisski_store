@@ -49,7 +49,13 @@ class ARC2_RemoteSPARQLOneDotOneStore extends ARC2_Class {
   function insert($doc, $g, $keep_bnode_ids = 0) {
 //    $fh = fopen('/tmp/test.txt', 'a+');
 //    fwrite($fh, serialize($this->toNTriples($doc, '', 1)));
-    return $this->query('INSERT INTO <' . $g . '> { ' . $this->toNTriples($doc, '', 1) . ' }');
+
+    $triples = $this->toNTriples($doc, '', 1);
+    
+    if(!mb_detect_encoding($triples, 'UTF-8', true))
+      $triples = utf8_encode($triples);    
+
+    return $this->query('INSERT INTO <' . $g . '> { ' . $triples . ' }');
   //  return $this->query('INSERT INTO <' . $g . '> { ' . utf8_encode($this->toNTriples($doc, '', 1)) . ' }');
   }
   
