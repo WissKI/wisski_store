@@ -289,7 +289,7 @@ class wisski_Store extends wisski_ARCAdapter {
       $q .= "PREFIX $name:\t<$val>\n";
   	}
 
-	  $q .= "SELECT ?x ?y WHERE { ?x rdf:type ?y }";
+	  $q .= "SELECT DISTINCT ?x ?y WHERE { ?x rdf:type ?y }";
 	  
 	  $stored = array();
 
@@ -317,19 +317,30 @@ class wisski_Store extends wisski_ARCAdapter {
 					$node->type = 'property';
 				else 
 					$node->type = 'individual'; 
-				$node->title = $name;
-				$node->body = '';
-				$node->teaser = '';
-				$node->uid = 1;
-				$node->status = 1;
-				$node->promote = 1;
 
-				node_save($node);
-				
-				if(module_exists("path"))
-				  path_set_alias("node/" . $node->nid, "content/" . wisski_store_makePathTitle($node->title));
-				
-				$stored[] = $row['x'];                  
+
+        // by Martin 
+        // we have to check whether there exists already a node for this individual
+        $tmp = db_query("SELECT nid FROM {node} WHERE title = '%s' AND type = '%s'", $name, $node->type);
+        if (db_result($tmp) === FALSE) {
+  
+          $node->title = $name;
+          $node->body = '';
+          $node->teaser = '';
+          $node->uid = 1;
+          $node->status = 1;
+          $node->promote = 0;
+
+          node_save($node);
+        
+          if(module_exists("path")) {
+            path_set_alias("node/" . $node->nid, "content/" . wisski_store_makePathTitle($node->title));
+          }
+
+          $stored[] = $row['x'];
+
+        }
+        
 			}
 		}
 	}
