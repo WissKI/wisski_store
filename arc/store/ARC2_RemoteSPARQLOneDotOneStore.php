@@ -115,18 +115,53 @@ class ARC2_RemoteSPARQLOneDotOneStore extends ARC2_Class {
     else if($infos['query']['type'] == "load")
       $q = str_replace("INTO", "INTO GRAPH", $q);
     else if($infos['query']['type'] == "insert") {
-      if(strpos($q, "WHERE") !== FALSE) 
-        $q = str_replace("INTO", "{ GRAPH", $q) . "}";
-      else
-        $q = str_replace("INTO", "DATA { GRAPH", $q) . "}";
+      $q = preg_replace('/[\n\r\s]+/', ' ', $q);
+      
+      if (!preg_match('/^(\s*(?:PREFIX \S+ \S+ |BASE \S+ )*\s*)(INSERT.*)/ui', $q, $matches)) {
+        drupal_set_message(t('Unknown query prefix pattern: "!q"', array('!q' => check_plain($q))), 'warning');
+        return $q;
+      }
+      list(, $prefixes, $q) = $matches;
+      if (!preg_match('/^INSERT INTO (\S+) ({.*?})(?:| WHERE ({.*}))$/ui', $q, $matches)) {
+        drupal_set_message(t('Unknown query pattern: "!q"', array('!q' => check_plain($q))), 'warning');
+        return $prefixes . $q;
+      }
+      list(, $into, $clause, $where) = $matches;
+
+      if ($where) {
+        $q = "INSERT { GRAPH $into $clause } WHERE $where";
+      } else {
+        $q = "INSERT DATA { GRAPH $into $clause }";
+      }
+
+      $q = "$prefixes $q";
+
     } else if($infos['query']['type'] == "delete") {
-      if(strpos($q, "FROM") !== FALSE && strpos($q, "WHERE") === FALSE)
-        $q = str_replace("FROM", "{ GRAPH", $q) . "}";
-      else if(strpos($q, "FROM") !== FALSE && strpos($q, "WHERE") !== FALSE) {
-        $q = preg_replace("/FROM \<(.*?)\> \{.*?\} WHERE/i", "WHERE { GRAPH <$1>", $q) . "}";
-      } else
-        if(strpos($q, "WHERE") === FALSE)
-          $q = str_replace("DELETE ", "DELETE DATA ", $q);
+      $q = preg_replace('/[\n\r\s]+/', ' ', $q);
+      
+      if (!preg_match('/^(\s*(?:PREFIX \S+ \S+ |BASE \S+ )*\s*)(DELETE.*\S)\s*$/ui', $q, $matches)) {
+        drupal_set_message(t('Unknown query prefix pattern: "!q"', array('!q' => check_plain($q))), 'warning');
+        return $q;
+      }
+      list(, $prefixes, $q) = $matches;
+      if (!preg_match('/^DELETE (?:FROM (\S+) |)({.*?})(?:| WHERE ({.*}))$/ui', $q, $matches)) {
+        drupal_set_message(t('Unknown query pattern: "!q"', array('!q' => check_plain($q))), 'warning');
+        return $prefixes . $q;
+      }
+      list(, $from, $clause, $where) = $matches;
+      
+      if ($where && $from) {
+        $q = "DELETE { GRAPH $from $clause } WHERE $where";
+      } elseif ($where) {
+        $q = "DELETE $clause WHERE $where";
+      } elseif ($from) {
+        $q = "DELETE { GRAPH $from $clause } WHERE { GRAPH $from $clause }";
+      } else {
+        $q = "DELETE $clause WHERE $clause";
+      }
+
+      $q = "$prefixes $q";
+
     }
         
     return $q;
