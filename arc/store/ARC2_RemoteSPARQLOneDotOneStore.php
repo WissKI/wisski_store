@@ -20,12 +20,16 @@ class ARC2_RemoteSPARQLOneDotOneStore extends ARC2_Class {
   function __construct($a, &$caller) {
     parent::__construct($a, $caller);
     $this->is_remote = 1;
+    $this->doNotTransform = 0;
   }
   
   function __init() {
     parent::__init();
   }
 
+  function doNotTransform() {
+    $this->doNotTransform = 1;
+  }
   /*  */
 
   function isSetUp() {
@@ -74,14 +78,18 @@ class ARC2_RemoteSPARQLOneDotOneStore extends ARC2_Class {
   
   /*  */
   
-  function query($q, $result_format = '', $src = '', $keep_bnode_ids = 0, $log_query = 0) {
+  function query($q, $result_format = '', $src = '', $keep_bnode_ids = 0, $log_query = 0, $infos = NULL) {
     if ($log_query) $this->logQuery($q);
     ARC2::inc('SPARQLPlusParser');
-    $p = new ARC2_SPARQLPlusParser($this->a, $this);
-    $p->parse($q, $src);
-    $infos = $p->getQueryInfos();
+
+    if(empty($infos)) {
+      $p = new ARC2_SPARQLPlusParser($this->a, $this);
+      $p->parse($q, $src);
+      $infos = $p->getQueryInfos();
+    }
+    
     $t1 = ARC2::mtime();
-    if (!$errs = $p->getErrors()) {
+    if (empty($p) || !$errs = $p->getErrors()) {
       $qt = $infos['query']['type'];
       $r = array('query_type' => $qt, 'result' => $this->runQuery($q, $qt, $infos));
     }
@@ -110,25 +118,75 @@ class ARC2_RemoteSPARQLOneDotOneStore extends ARC2_Class {
    */
   
   function transformSPARQLToOneDotOne($q, $infos) {
+    
     if(empty($infos))
       return $q;
     else if($infos['query']['type'] == "load")
       $q = str_replace("INTO", "INTO GRAPH", $q);
     else if($infos['query']['type'] == "insert") {
-      if(strpos($q, "WHERE") !== FALSE) 
-        $q = str_replace("INTO", "{ GRAPH", $q) . "}";
-      else
-        $q = str_replace("INTO", "DATA { GRAPH", $q) . "}";
+      
+#if (in_array($infos['query']['type'],array('insert','delete'))) dpm(array($q, $infos), 'transform ins');
+
+      if (!preg_match('/^(\s*(?:PREFIX\s+\S+\s+\S+\s+|BASE\s+\S+\s+)*\s*)(INSERT.*)/sui', $q, $matches)) {
+        drupal_set_message(t('Unknown query prefix pattern: "!q"', array('!q' => check_plain($q))), 'warning');
+        return $q;
+      }
+      list(, $prefixes, $q) = $matches;
+      if (!preg_match('/^INSERT\s+INTO\s+(\S+)\s+({.*?})(?:\s*|\s+WHERE\s+({.*})\s*)$/sui', $q, $matches)) {
+        if (!preg_match('/^INSERT\s+INTO\s+(\S+)\s+({.*})(?:\s*|\s+WHERE\s+({.*})\s*)$/sui', $q, $matches)) {
+          drupal_set_message(t('Unknown query pattern: "!q"', array('!q' => check_plain($q))), 'warning');
+          return $prefixes . $q;
+        }
+      }
+      list(, $into, $clause, $where) = $matches;
+
+      if ($where) {
+        $q = "INSERT { GRAPH $into $clause } WHERE $where";
+      } else {
+        $q = "INSERT DATA { GRAPH $into $clause }";
+      }
+
+      $q = "$prefixes $q";
+    
+#if (in_array($infos['query']['type'],array('insert','delete'))) dpm(array($q), 'formed');
+
     } else if($infos['query']['type'] == "delete") {
-      if(strpos($q, "FROM") !== FALSE && strpos($q, "WHERE") === FALSE)
-        $q = str_replace("FROM", "{ GRAPH", $q) . "}";
-      else if(strpos($q, "FROM") !== FALSE && strpos($q, "WHERE") !== FALSE) {
-        $q = preg_replace("/FROM \<(.*?)\> \{.*?\} WHERE/i", "WHERE { GRAPH <$1>", $q) . "}";
-      } else
-        if(strpos($q, "WHERE") === FALSE)
-          $q = str_replace("DELETE ", "DELETE DATA ", $q);
+      
+#if (in_array($infos['query']['type'],array('insert','delete'))) dpm(array($q, $infos), 'transform del');
+
+      if (!preg_match('/^(\s*(?:PREFIX\s+\S+\s+\S+\s+|BASE\s+\S+\s+)*\s*)(DELETE.*\S)\s*$/sui', $q, $matches)) {
+        drupal_set_message(t('Unknown query prefix pattern: "!q"', array('!q' => check_plain($q))), 'warning');
+        return $q;
+      }
+      list(, $prefixes, $q) = $matches;
+      if (!preg_match('/^DELETE\s+(?:FROM\s+(\S+)\s*|)(|{.*?})(?:|\s+WHERE\s+({.*}))$/sui', $q, $matches)) {
+        if (!preg_match('/^DELETE\s+(?:FROM\s+(\S+)\s*|)(|{.*})(?:|\s+WHERE\s+({.*}))$/sui', $q, $matches)) {
+          drupal_set_message(t('Unknown query pattern: "!q"', array('!q' => check_plain($q))), 'warning');
+          return $prefixes . $q;
+        }
+      }
+      list(, $from, $clause, $where) = $matches;
+      
+      if (!$clause && $from) {
+        $q = "DROP GRAPH $from";
+      } else {
+        if ($where && $from) {
+          $q = "DELETE { GRAPH $from $clause } WHERE $where";
+        } elseif ($where) {
+          $q = "DELETE $clause WHERE $where";
+        } elseif ($from) {
+          $q = "DELETE { GRAPH $from $clause } WHERE { GRAPH $from $clause }";
+        } else {
+          $q = "DELETE $clause WHERE $clause";
+        }
+      }
+
+      $q = "$prefixes $q";
+    
+#if (in_array($infos['query']['type'],array('insert','delete'))) dpm(array($q), 'formed');
+
     }
-        
+
     return $q;
   
   }
@@ -142,16 +200,24 @@ class ARC2_RemoteSPARQLOneDotOneStore extends ARC2_Class {
     $q = $this->completeQuery($q);
 
     /* custom handling */
+
     $mthd = 'run' . $this->camelCase($qt) . 'Query';
-    
+        
     if (method_exists($this, $mthd)) {
       return $this->$mthd($q, $infos);
     }
+
     /* http verb */
     $mthd = in_array(strtolower($qt), array('load', 'insert', 'delete', 'drop', 'clear')) ? 'POST' : 'GET';
     //$mthd = 'GET';
+
     
-    $q = $this->transformSPARQLToOneDotOne($q, $infos);
+#    if (!$this->doNotTransform) {
+      $q = $this->transformSPARQLToOneDotOne($q, $infos);
+#    } else {
+      $this->doNotTransform = 0;
+#    }
+
 
     /* reader */
     ARC2::inc('Reader');
@@ -168,7 +234,7 @@ class ARC2_RemoteSPARQLOneDotOneStore extends ARC2_Class {
       $url .= '&infer=false';
       if ($k = $this->v('store_read_key', '', $this->a)) $url .= '&key=' . urlencode($k);
     }
-
+    
     if ($mthd != 'GET' || strlen($url) > 255) {
       $mthd = 'POST';
       $url = $ep;

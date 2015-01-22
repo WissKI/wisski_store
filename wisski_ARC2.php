@@ -546,66 +546,113 @@ class wisski_ARC2Remote extends ARC2_RemoteSPARQLOneDotOneStore {
     return $r;
   }  
   
+  
+  function rewriteQuery($q, $t) {
+    
+    $head = '';
+    $body = $q;
+        
+    if ($t == 'select') {
+/*      ARC2::inc('SPARQLPlusParser');
+      $p = new ARC2_SPARQLPlusParser($this->a, $this);
+      drupal_set_message("q in: " . htmlentities($q) . " time " . microtime());
+          
+      $p->parse($q, $src);
+      $infos = $p->getQueryInfos();
+          
+      $res_vars = $infos['query']['result_vars'];
+
+      drupal_set_message("after parse: " . htmlentities($q) . " time " . microtime());
+*/      
+      $tmp = preg_match('/^\s*(?:PREFIX\s+\S+\s+\S+\s+|BASE\s+\S+\s+)*(?:SELECT(?:\s+DISTINCT)?)((?:\s+[\$\?]\S+)+)/sui', $q, $res_vars);
+      
+      $head = $res_vars[0];
+      $body = mb_substr($q, mb_strlen($head));
+
+      $res_vars = preg_split('/\s+/u', $res_vars[1], NULL, PREG_SPLIT_NO_EMPTY);
+#dpm(array($q, $tmp, $res_vars, $head, $body,debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS)),'resvars');
+
+    }
+    
+
+    // look for filters which directly replace variables
+    if(preg_match_all('/FILTER\s*\(\s*([$?]\S*?)\s*=\s*(<[^>]*>).*?\)(\s*\.)?/sui', $body, $matches)) {
+      
+      // what variables are in the filters?
+      foreach($matches[1] as $key => $var) {
+        
+        // if the variable is queried we don't want to replace it because if we
+        // replace all variables the query would need rewriting from select to
+        // ask.
+        if ($t == 'select' && in_array($var, $res_vars)) {
+#dpm(lalala);
+          continue;
+        }
+    
+
+        // get the replacement for them
+        $replacement = $matches[2][$key];
+        
+/*        if ($t == 'select') {
+          // if the variable is queried we don't want to replace it because if we
+          // replace all variables the query would need rewriting from select to
+          // ask.
+          $continue = FALSE;
+          
+          // if there are no result vars, we can savely stop
+#        if(empty($res_vars))
+#          break;
+          
+          foreach($res_vars as $res_var) {
+            
+            if($res_var['var'] == $var) {
+              $continue = TRUE;
+              break;
+            }
+            
+          }
+          
+          
+          // if the variable is in the resulting variables, do nothing
+          if($continue) continue;
+        }*/
+        
+        // else first replace the filter
+        $body = str_replace($matches[0][$key], '', $body);
+        // and then the variable for the uri
+        $body = str_replace($var, $replacement, $body); 
+      }
+    }    
+    
+    $q = $head . $body;
+
+#dpm(array($q),'q');
+
+    return $q;
+
+  }
+
+
   /* runs when a query is posted */
   function query($q, $result_format = '', $src = '', $keep_bnode_ids = 0, $log_query = 0) {
     // Get a SPARQL Plus Parser... perhaps you would like something else here in future
     // esp. if this interface is abstracted, this functionality for query analyzing
     // must be replaced.
-    ARC2::inc('SPARQLPlusParser');
-    $p = new ARC2_SPARQLPlusParser($this->a, $this);
-        
-    $p->parse($q, $src);
-    $infos = $p->getQueryInfos();
 
-    // look for filters which directly replace variables
-    if(preg_match_all('/FILTER.*?\(.*?(\?.*?)=.*?\<(.*?)\>.*?\)(.*?\.|)/', $q, $matches)) {
-      
-      // what variables are in the filters?
-      foreach($matches[1] as $key => $match) {
-      
-        // trim them and get the replacement for them
-        $var = trim($match);
-        $replacement = "<" . trim($matches[2][$key]) . ">";
+    preg_match('/^(?:\s*(?:PREFIX\s+\S+\s+\S+\s+|BASE\s+\S+\s+)*\s*)(\w+)/sui', $q, $matches);
 
-        // if the variable is queried we don't want to replace it because if we
-        // replace all variables the query would need rewriting from select to
-        // ask.
-        $continue = FALSE;
-        $res_vars = $infos['query']['result_vars'];
-        
-        // if there are no result vars, we can savely stop
-        if(empty($res_vars))
-          break;
-        
-        foreach($res_vars as $res_var) {
-          
-          if($res_var['var'] == substr($var, 1)) {
-            $continue = TRUE;
-            break;
-          }
-          
-        }
-        
-        // if the variable is in the resulting variables, do nothing
-        if($continue)
-          continue;
-        
-        // else first replace the filter
-        $q = preg_replace('/FILTER.*?\(.*?(\?.*?)=.*?\<(.*?)\>.*?\)(.*?\.|)/', "", $q);
-        // and then the variable for the uri
-        $q = str_replace($var, $replacement, $q); 
-      }
-    }
-        
-    if(($infos['query']['type'] == "select" || $infos['query']['type'] == "base" ||$infos['query']['type'] == "ask" || $infos['query']['type'] == "construct" || $infos['query']['type'] == "describe") || empty($this->update)) {
+    $infos['query']['type'] = strtolower($matches[1]);
+
+    $q = $this->rewriteQuery($q, $infos['query']['type']);
+
+    if(in_array($infos['query']['type'], array("select", "ask", "construct", "describe")) || empty($this->update)) {
       $this->a['remote_store_endpoint'] = $this->query;
-
-      $r = parent::query($q, $result_format, $src, $keep_bnode_ids, $log_query);
     } else {
       $this->a['remote_store_endpoint'] = $this->update;
-      
-      $r = parent::query($q, $result_format, $src, $keep_bnode_ids, $log_query);
     }
+    
+    $r = parent::query($q, $result_format, $src, $keep_bnode_ids, $log_query, $infos);
+
     return $r;
   }
 }
