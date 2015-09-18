@@ -121,15 +121,28 @@ class wisski_Store extends wisski_ARCAdapter {
 	* @return: Returns true if something was deleted
 	*/
 	public function wisski_Store_delOntology($form, &$form_state) {
-	 	$uris = $this->wisski_Store_getOntologyURI();
+    $store = $this->wisski_ARCAdapter_getStore();
 	 	
-	 	foreach($uris as $uri) {
-			$query = "DELETE FROM <$uri> { ?s ?p ?o } WHERE { ?s ?p ?o . }";
-		
-			$store = $this->wisski_ARCAdapter_getStore();
-			$store->query($query);
-		}
-				
+	 	$uris = $this->wisski_Store_getOntologyURI();
+    foreach($uris as $uri) {
+      
+      drupal_set_message(t('Delete ontology %o', array('%o' => $uri)));
+      $query = "DELETE FROM <$uri> { ?s ?p ?o } WHERE { ?s ?p ?o . }";
+      $store->query($query);
+      
+      if (variable_get('wisski_store_extend_delete_ontology_to_other_graphs', FALSE)) {
+	      $q = "SELECT ?g WHERE { GRAPH ?g { <$uri> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Ontology> . } }";
+	      $ga = $store->query($q, 'rows');
+	      if (count($ga) == 1) {
+	        $g = $ga[0]['g'];
+	        drupal_set_message(t('Delete ontology graph %o', array('%o' => $g)));
+	        $query = "DELETE FROM <$g> { ?s ?p ?o } WHERE { ?s ?p ?o . }";
+	        $store->query($query);
+	      }
+	    }
+	    
+    }
+
 		$sql = "SELECT nid FROM {node} WHERE type = 'class' OR type = 'property'";
 		$result = db_query($sql);
 		
