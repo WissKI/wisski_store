@@ -156,6 +156,71 @@ class wisski_Store extends wisski_ARCAdapter {
 		
 	}	
 	
+
+ /**
+	* This public function is used to delete the ontology in the triple store
+	* @author: Mark Fichtner
+	* @return: Returns true if something was deleted
+	*/
+	public function wisski_Store_getOntologyGraphs() {
+    $store = $this->wisski_ARCAdapter_getStore();
+    
+    $graph_uris = array();
+	  $q = "SELECT DISTINCT ?g ?o WHERE { GRAPH ?g { ?o <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2002/07/owl#Ontology> . } }";
+    $ga = $store->query($q, 'rows');
+    if ($store->getErrors()) {
+      foreach ($store->getErrors() as $e) {
+        drupal_set_message(t("Error querying RDF store: @e", array('@e' => $e)), 'error');
+      }
+      return array();
+    }
+    foreach ($ga as $g) {
+      $graph_uris[$g['g']][] = $g['o'];
+    }
+
+    return $graph_uris;
+    
+  }
+
+
+
+ /**
+	* This public function is used to delete the ontology in the triple store
+	* @author: Mark Fichtner
+	* @return: Returns true if something was deleted
+	*/
+	public function wisski_Store_betterDelOntology() {
+    $store = $this->wisski_ARCAdapter_getStore();
+    
+    // firt delete alll rdf data
+    $graph_uris = $this->wisski_Store_getOntologyGraphs();
+    foreach($graph_uris as $uri => $bla) {
+      drupal_set_message(t('Delete graph %g', array('%g' => $uri)));
+      $query = "DELETE FROM <$uri> { ?s ?p ?o } WHERE { ?s ?p ?o . }";
+      $store->query($query);
+      if ($store->getErrors()) {
+        foreach ($store->getErrors() as $e) { 
+          drupal_set_message(t("Error querying RDF store: @e", array('@e' => $e)), 'error');
+        }
+	    }
+    }
+    
+    // then delete the drupal nodes
+		$sql = "SELECT nid FROM {node} WHERE type = 'class' OR type = 'property'";
+		$result = db_query($sql);
+		
+		while ($row = db_fetch_object($result)) {
+			node_delete($row->nid);
+		}
+		
+		variable_set("wisski_namespaces", array());
+	
+		return TRUE;		
+		
+	}	
+
+
+
  /**
 	* This public function is used to delete the data in the triple store
 	* @author: Mark Fichtner

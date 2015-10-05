@@ -121,6 +121,14 @@ function wisski_store_menu() {
      'access arguments' => array('wisski administrate page'),
   );
 
+  $items['admin/settings/wisski/ontology/delete'] = array(
+     'title'    => t('Delete Ontology'),
+     'page callback' => 'drupal_get_form',
+     'page arguments' => array('wisski_store_betterDeleteOntology'),
+     'type'     => MENU_CALLBACK,
+     'access arguments' => array('wisski administrate page'),
+  );
+
   $items['admin/settings/wisski/graphViz'] = array(
     'title'    => t('GraphViz Settings'),
     'page callback' => 'drupal_get_form',
@@ -338,10 +346,16 @@ function wisski_store_ontology() {
   		'#submit' => array('wisski_store_delData'),
   	);
   	
-    $form['data']['wisski_store_delOnto'] = array(
+/*    $form['data']['wisski_store_delOnto'] = array(
   		'#type' => 'submit',
   		'#value' => t('Delete Ontology'),
   		'#submit' => array('wisski_store_delOnto'),
+  	);
+*/	
+    $form['data']['wisski_store_betterDelOnto'] = array(
+  		'#type' => 'submit',
+  		'#value' => t('Safer Delete Ontology'),
+  		'#submit' => array('wisski_store_betterDelOnto'),
   	);
 	
   	$form['data']['wisski_store_clearAll'] = array(
@@ -523,6 +537,64 @@ function wisski_store_delOnto($f, &$s) {
   $ret =  wisski_store_getObj()->wisski_Store_delOntology($f, $s);
   return ret;
 }
+
+
+/**
+* This function handles the deletion of ontologies of the wisski system in OWL/RDF format
+* @author: Martin Scholz
+* @return: TRUE if deletion worked, else FALSE
+*/
+function wisski_store_betterDelOnto($f, &$s) {
+  drupal_goto('admin/settings/wisski/ontology/delete');
+}
+
+
+function wisski_store_betterDeleteOntology() {
+  
+  $form = array();
+  $form['hint'] = array(
+    '#value' => t('You are about to delete the following graphs from triple store. Please check them carefully before you proceed!'),
+    '#prefix' => '<span style="color: red;">',
+    '#suffix' => '</span>',
+    '#weight' => 0,
+  );
+  $form['graphs'] = array(
+    '#type' => 'checkboxes',
+    '#title' => t('Graph URIs (contained ontology URIs in parantheses)'),
+    '#disabled' => TRUE,
+    '#options' => array(),
+    '#default_value' => array(),
+    '#weight' => 50,
+  );
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => 'Delete now!',
+    '#weight' => 100,
+  );
+
+  $so = wisski_store_getObj();
+  foreach ($so->wisski_Store_getOntologyGraphs() as $g => $onts) {
+    if ($g == $so->graphName) {
+      drupal_set_message(t('<strong>Warning: The data graph contains an ontology declaration. Surely, there is something wrong with the ontology that has to be repaired first!</strong> You may not proceed deleting the ontology as it could delete all data! Please have a look at the triple store or contact your administrator.'), 'error');
+      $form['submit']['#disabled'] = TRUE;
+    }
+    $form['graphs']['#options'][$g] = check_plain("<$g> (<" . join("> <", $onts) . '>)');
+    $form['graphs']['#default_value'][] = $g;
+  }
+     
+  return $form;
+
+}
+
+
+function wisski_store_betterDeleteOntology_submit($f, $fs) {
+  
+  wisski_store_getObj()->wisski_Store_betterDelOntology();
+  drupal_goto('admin/settings/wisski/ontology');
+
+}
+
+
 
 
 /**
